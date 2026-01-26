@@ -1,0 +1,14 @@
+{
+  "appinfo": {
+    "name": "local-ai",
+    "commit": "22",
+    "project-date": "18-11-2025",
+    "description": "Local AI",
+    "environment": "ai-environment"
+  },
+
+  "appfiles": {
+
+  }
+}
+
