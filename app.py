@@ -99,6 +99,7 @@ async def rag_embed(
     elif output == "successfully":
       return {"status": output}
 
+
 # It delete the transmitted data to the RAG database
 @app.post("/api/embeddelete")
 async def embed_delete(
@@ -139,4 +140,10 @@ async def askai(req: AskAI):
         event_stream(),
         media_type="text/plain"
     )
+
+
+# Check health API
+@app.get("/api/health")
+def healthcheck():
+  return {"status": "true"}
 
