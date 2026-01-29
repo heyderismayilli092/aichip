@@ -20,7 +20,7 @@
 #  }'
 # -----------------------------------------
 # Get all RAG lists:
-# curl -X POST http://127.0.0.1:8291/api/raglist -H "Content-Type: application/json"
+# curl -X POST http://127.0.0.1:8291/api/listrag -H "Content-Type: application/json"
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
