@@ -18,6 +18,9 @@
 #    "rag_name": "my_rag",
 #    "top_k": 5
 #  }'
+# -----------------------------------------
+# Get all RAG lists:
+# curl -X POST http://127.0.0.1:8291/api/raglist -H "Content-Type: application/json"
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -140,6 +143,15 @@ async def askai(req: AskAI):
         event_stream(),
         media_type="text/plain"
     )
+
+
+# It retrieves a list of all RAG databases
+@app.post("/api/listrag")
+def listrag():
+  if not os.path.exists("ragdisk"):
+    return {"error": "Not created RAG database"}
+  raglist = os.listdir("ragdisk")  # It lists all RAG databases that have been created
+  return {"list": raglist}
 
 
 # Check health API
