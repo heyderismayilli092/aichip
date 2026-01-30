@@ -77,6 +77,7 @@ def safe_load_document(path: str):
 #-----------------------------------------------------
 
 
+# Deleting a file embedded in a RAG database from the database
 def delete_removed_from_db(embedfile: str, db_dir: str):
     db_dir = "ragdisk/"+db_dir
     if not os.path.exists(db_dir):
@@ -106,6 +107,7 @@ def delete_removed_from_db(embedfile: str, db_dir: str):
     return "Successfully delete file in database"
 
 
+# Embedding the submitted file into the RAG database
 def process_files(embedfile: str, db_dir: str):
     db_dir = "ragdisk/"+db_dir
     os.makedirs(db_dir, exist_ok=True)
