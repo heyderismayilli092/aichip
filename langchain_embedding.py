@@ -211,3 +211,14 @@ def process_files(embedfile: str, db_dir: str):
     save_meta(db_dir+"/embedded_metadata.json", meta)
     return f"successfully"
 
+
+# Source embed check with hash value
+def embed_check_hash(db_dir, sha256: str) -> bool:
+  db_dir = "ragdisk/"+db_dir
+  shavalues = []  # hash values list
+  with open(db_dir+"/embedded_metadata.json", "r") as jsdata:  # load the embedding metadata file
+    data = json.load(jsdata)
+  for embedfile in data.keys():  # list the files name
+    shavalues.append(data[embedfile]["sha256"])  # sha valuess add in list
+  return shavalues
+
