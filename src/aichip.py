@@ -34,7 +34,7 @@
 
 # -----------------------------------------
 # Get all RAG lists:
-# curl -X POST http://127.0.0.1:8291/api/listrag -H "Content-Type: application/json"
+# curl -X GET http://127.0.0.1:8291/api/listrag
 
 # -----------------------------------------
 # A source embedding check with hash value:
@@ -179,7 +179,7 @@ async def askai_stream(req: AskAI):
 
 
 # It retrieves a list of all RAG databases
-@app.post("/api/listrag")
+@app.get("/api/listrag")
 def listrag():
   if not os.path.exists(rag_folder):
     return {"status": "false", "error": "Not created RAG database"}
@@ -217,6 +217,20 @@ def deleterag(req: dltrag):
     if output["status"] == "false":  # if the process fails, it will be returned along with the necessary explanation
       return {"status": "false", "error": output["output"]}
     return {"status": "true", "output": output["output"]}
+
+
+# Checking if the requested database exists
+class ragcheck(BaseModel):
+    rag_name: str
+@app.post("/api/ragcheck")
+def ragcheck(req: ragcheck):
+  if os.path.exists(rag_folder+"/"+req.rag_name):  # check folder avalibility
+    if os.path.exists(rag_folder+"/"+req.rag_name+"/embedded_metadata.json"):  # the folder is being checked to see if it is a RAG database
+      return {"status": "true"}
+    else:
+      return {"status": "false"}
+  else:
+    return {"status": "false"}
 
 
 # Check health API
