@@ -19,7 +19,9 @@ from langchain_community.vectorstores import Chroma
 # ---------- CONFIG ----------
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
-EMBED_MODEL = "/home/kali-sistem/99ELM01/ARDM/ai-models/all-mpnet-base-v2"  # HuggingFace embedding model
+with open("config.json", "r") as configfile:
+  data = json.load(configfile)
+EMBED_MODEL = data["embed-model"]  # HuggingFace embedding model
 # ----------------------------
 
 

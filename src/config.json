@@ -1,0 +1,7 @@
+{
+  "chat-model": "/home/kali-sistem/99ELM01/ARDM/ai-models/Llama-3.2-8B-Instruct-Q3_K_M.gguf",
+  "embed-model": "/home/kali-sistem/99ELM01/ARDM/ai-models/all-mpnet-base-v2",
+  "top-k": 7,
+  "max-tokens": 2048
+}
+
