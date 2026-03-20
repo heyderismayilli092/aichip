@@ -22,6 +22,17 @@
 #  }'
 
 # -----------------------------------------
+# Ask AI (Real-time response sending (only applicable for a suitable web interface)):
+# curl -X POST http://127.0.0.1:8291/api/askai_stream \
+#  -H "Content-Type: application/json" \
+#  -d '{
+#    "prompt": "Answer the question according to the context given below. If you cannot find a suitable source to answer the question, try to answer according to your own knowledge and tell what type of sources are needed.",
+#    "question": "what is machine learning ?",
+#    "rag_name": "my_rag",
+#    "top_k": 5
+#  }'
+
+# -----------------------------------------
 # Get all RAG lists:
 # curl -X POST http://127.0.0.1:8291/api/listrag -H "Content-Type: application/json"
 
@@ -68,7 +79,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 # loading config file
 with open("config.json", "r") as configfile:  # loading config file
   data = json.load(configfile)
-#TOP_K = data["top-k"]  # Fewer resources --> ideal for small model, reduces repetitions
+rag_folder = data["rag-folder"]  # RAG database directory
 
 # -------------------- LLM Settings --------------------
 print("LLM load...")
@@ -155,10 +166,10 @@ def askai(req: AskAI):
 
 
 # Real-time response sending (only applicable for a suitable web interface)
-@app.post("/api/askai_web")
-async def askai(req: AskAI):
+@app.post("/api/askai_stream")
+async def askai_stream(req: AskAI):
     def event_stream():
-        for chunk in langchain_ask.askai_web(req.prompt, req.question, req.rag_name, llm, req.top_k):
+        for chunk in langchain_ask.askai_stream(req.prompt, req.question, req.rag_name, llm, req.top_k):
             yield chunk
 
     return StreamingResponse(
@@ -170,9 +181,13 @@ async def askai(req: AskAI):
 # It retrieves a list of all RAG databases
 @app.post("/api/listrag")
 def listrag():
-  if not os.path.exists("ragdisk"):
+  if not os.path.exists(rag_folder):
     return {"status": "false", "error": "Not created RAG database"}
-  raglist = os.listdir("ragdisk")  # It lists all RAG databases that have been created
+  raglist = []
+  # it is being checked to see if it is a genuine RAG folder
+  for ragl in os.listdir(rag_folder):  # It lists all RAG databases that have been created
+    if os.path.exists(rag_folder+"/"+ragl+"/embedded_metadata.json"):
+      raglist.append(ragl)
   return {"list": raglist}
 
 
@@ -182,7 +197,7 @@ class chcembed(BaseModel):
     hashvalue: str
 @app.post("/api/checkembed")
 def checkembed(req: chcembed):
-  if not os.path.exists("ragdisk"):
+  if not os.path.exists(rag_folder):
     return {"status": "false", "error": "Not created RAG database"}
   output = langchain_embedding.embed_check_hash(req.rag_name, req.hashvalue)
   if req.hashvalue in output:

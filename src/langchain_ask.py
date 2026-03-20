@@ -73,7 +73,7 @@ Context:
 
 
 
-def askai_web(promptdata, question, ragdir, llm, top_k):
+def askai_stream(promptdata, question, ragdir, llm, top_k):
     now = time.time()
     ragdir = "ragdisk/"+ragdir
     if not os.path.exists(ragdir):
