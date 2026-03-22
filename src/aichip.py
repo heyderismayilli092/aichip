@@ -18,7 +18,8 @@
 #    "prompt": "Answer the question according to the context given below. If you cannot find a suitable source to answer the question, try to answer according to your own knowledge and tell what type of sources are needed.",
 #    "question": "what is machine learning ?",
 #    "rag_name": "my_rag",
-#    "top_k": 5
+#    "top_k": 5,
+#    "source": True
 #  }'
 
 # -----------------------------------------
@@ -29,7 +30,8 @@
 #    "prompt": "Answer the question according to the context given below. If you cannot find a suitable source to answer the question, try to answer according to your own knowledge and tell what type of sources are needed.",
 #    "question": "what is machine learning ?",
 #    "rag_name": "my_rag",
-#    "top_k": 5
+#    "top_k": 5,
+#    "source": True
 #  }'
 
 # -----------------------------------------
@@ -74,7 +76,6 @@ from langchain_community.vectorstores import Chroma
 from langchain_community.llms import LlamaCpp
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
-from langchain_community.embeddings import HuggingFaceEmbeddings
 
 # loading config file
 with open("config.json", "r") as configfile:  # loading config file
@@ -159,9 +160,10 @@ class AskAI(BaseModel):
     question: str
     rag_name: str
     top_k: int
+    source: bool
 @app.post("/api/askai")
 def askai(req: AskAI):
-  output = langchain_ask.ask(req.prompt, req.question, req.rag_name, llm, req.top_k)
+  output = langchain_ask.ask(req.prompt, req.question, req.rag_name, llm, req.top_k, req.source)
   return output
 
 
@@ -169,7 +171,7 @@ def askai(req: AskAI):
 @app.post("/api/askai_stream")
 async def askai_stream(req: AskAI):
     def event_stream():
-        for chunk in langchain_ask.askai_stream(req.prompt, req.question, req.rag_name, llm, req.top_k):
+        for chunk in langchain_ask.askai_stream(req.prompt, req.question, req.rag_name, llm, req.top_k, req.source):
             yield chunk
 
     return StreamingResponse(
