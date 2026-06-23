@@ -161,7 +161,7 @@ class AskAI(BaseModel):
     source: str
 @app.post("/api/askai")
 def askai(req: AskAI):
-  output = langchain_ask.ask(req.prompt, req.question, req.rag_name, llm, req.top_k)
+  output = langchain_ask.ask(req.prompt, req.question, req.rag_name, llm, req.top_k, req.source)
   return output
 
 
@@ -169,7 +169,7 @@ def askai(req: AskAI):
 @app.post("/api/askai_stream")
 async def askai_stream(req: AskAI):
     def event_stream():
-        for chunk in langchain_ask.askai_stream(req.prompt, req.question, req.rag_name, llm, req.top_k):
+        for chunk in langchain_ask.askai_stream(req.prompt, req.question, req.rag_name, llm, req.top_k, req.source):
             yield chunk
 
     return StreamingResponse(
