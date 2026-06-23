@@ -18,8 +18,7 @@
 #    "prompt": "Answer the question according to the context given below. If you cannot find a suitable source to answer the question, try to answer according to your own knowledge and tell what type of sources are needed.",
 #    "question": "what is machine learning ?",
 #    "rag_name": "my_rag",
-#    "top_k": 5,
-#    "source": True
+#    "top_k": 5
 #  }'
 
 # -----------------------------------------
@@ -30,8 +29,7 @@
 #    "prompt": "Answer the question according to the context given below. If you cannot find a suitable source to answer the question, try to answer according to your own knowledge and tell what type of sources are needed.",
 #    "question": "what is machine learning ?",
 #    "rag_name": "my_rag",
-#    "top_k": 5,
-#    "source": True
+#    "top_k": 5
 #  }'
 
 # -----------------------------------------
@@ -160,10 +158,10 @@ class AskAI(BaseModel):
     question: str
     rag_name: str
     top_k: int
-    source: bool
+    source: str
 @app.post("/api/askai")
 def askai(req: AskAI):
-  output = langchain_ask.ask(req.prompt, req.question, req.rag_name, llm, req.top_k, req.source)
+  output = langchain_ask.ask(req.prompt, req.question, req.rag_name, llm, req.top_k)
   return output
 
 
@@ -171,7 +169,7 @@ def askai(req: AskAI):
 @app.post("/api/askai_stream")
 async def askai_stream(req: AskAI):
     def event_stream():
-        for chunk in langchain_ask.askai_stream(req.prompt, req.question, req.rag_name, llm, req.top_k, req.source):
+        for chunk in langchain_ask.askai_stream(req.prompt, req.question, req.rag_name, llm, req.top_k):
             yield chunk
 
     return StreamingResponse(
