@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import os
 import sys
 import json
@@ -8,76 +6,21 @@ from pathlib import Path
 from tqdm import tqdm
 import mimetypes
 import magic
+import source_utils  # provides the necessary preliminary functions for processing the given resources
 # Langchain frameworks
-from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
-from langchain_community.document_loaders import UnstructuredHTMLLoader
-from langchain_community.document_loaders import UnstructuredMarkdownLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 
+
 # ---------- CONFIG ----------
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
 with open("config.json", "r") as configfile:
   data = json.load(configfile)
 EMBED_MODEL = data["embed-model"]  # HuggingFace embedding model
 rag_folder = data["rag-folder"]  # RAG database directory
+CHUNK_SIZE = data["chunk-size"]
+CHUNK_OVERLAP = data["chunk-overlap"]
 # ----------------------------
-
-
-# --------FUNCTIONS-----------
-def compute_sha256(path: str, block_size: int = 65536) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for blk in iter(lambda: f.read(block_size), b""):
-            h.update(blk)
-    return h.hexdigest()
-
-
-def load_meta(path: str) -> dict:
-    if not os.path.exists(path):
-        return {}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
-def save_meta(path: str, data: dict):
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    os.replace(tmp, path)
-
-
-def choose_loader(path: str):
-    lower = path.lower()
-    if lower.endswith(".pdf"):
-        return PyPDFLoader(path)
-    if lower.endswith(".docx"):
-        return Docx2txtLoader(path)
-    if lower.endswith(".txt"):
-        return TextLoader(path, encoding="utf-8")
-    if lower.endswith(".md"):
-        return UnstructuredMarkdownLoader(path)
-    if lower.endswith(".html") or lower.endswith(".htm"):
-        return UnstructuredHTMLLoader(path)
-    return None
-
-
-def safe_load_document(path: str):
-    loader = choose_loader(path)
-    if loader is None:
-        return []
-    try:
-        return loader.load()
-    except Exception as e:
-        print(f"Load error: {path} -> {e}")
-        return []
-        
-#-----------------------------------------------------
 
 
 # Deleting a file embedded in a RAG database from the database
@@ -89,7 +32,7 @@ def delete_removed_from_db(embedfile: str, db_dir: str):
     embedding = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
     db = Chroma(persist_directory=db_dir, embedding_function=embedding)
     # load json embedding metadata
-    meta = load_meta(db_dir+"/embedded_metadata.json")
+    meta = source_utils.load_meta(db_dir+"/embedded_metadata.json")
     embedded = []  # a list of previously embedded files is being added.
     # detect removed files and add list
     for file in meta:
@@ -120,7 +63,7 @@ def delete_ragdb(rag_name: str):
 
 
 # Embedding the submitted file into the RAG database
-def process_files(embedfile: str, db_dir: str):
+def ragembed(embedfile: str, db_dir: str):
     db_dir = rag_folder+"/"+db_dir
     os.makedirs(db_dir, exist_ok=True)
 
@@ -135,7 +78,7 @@ def process_files(embedfile: str, db_dir: str):
     embedding = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
     db = Chroma(persist_directory=db_dir, embedding_function=embedding)
 
-    meta = load_meta(db_dir+"/embedded_metadata.json")
+    meta = source_utils.load_meta(db_dir+"/embedded_metadata.json")
     embedded = []  # a list of previously embedded files is being added.
     for file in meta:
       embedded.append(file)
@@ -157,17 +100,17 @@ def process_files(embedfile: str, db_dir: str):
       # Fast checks: if mtime or size differs, we should inspect content
       if rec.get("mtime") != mtime or rec.get("filesize") != fsize:
         # compute quick sha to be sure (we could compute sha only after loading, but do now)
-        sha = compute_sha256(fullpath)
+        sha = source_utils.compute_sha256(fullpath)
         if sha != rec.get("sha256"):
             # We will collect all chunks across files so that we can show overall progress.
             # But to avoid reading everything in memory we process file-by-file and add to DB gradually.
             print(f"\nBeing processed: {os.path.basename(fname)}")
 
             # compute sha now (ensure we store correct sha)
-            sha = compute_sha256(fullpath)
+            sha = source_utils.compute_sha256(fullpath)
 
             # load document (only now)
-            docs = safe_load_document(fullpath)
+            docs = source_utils.safe_load_document(fullpath)
             if not docs:
                 return "not-loaded"
 
@@ -177,9 +120,9 @@ def process_files(embedfile: str, db_dir: str):
             print(f"Chunk number: {chunk_count}")
 
     # compute sha now (ensure we store correct sha)
-    sha = compute_sha256(fullpath)
+    sha = source_utils.compute_sha256(fullpath)
     # load document (only now)
-    docs = safe_load_document(fullpath)
+    docs = source_utils.safe_load_document(fullpath)
     if not docs:
         return f"not-loaded"
     # chunk
@@ -220,7 +163,7 @@ def process_files(embedfile: str, db_dir: str):
         "chunk_count": chunk_count
     }
     # Save metadata JSON
-    save_meta(db_dir+"/embedded_metadata.json", meta)
+    source_utils.save_meta(db_dir+"/embedded_metadata.json", meta)
     return f"successfully"
 
 
