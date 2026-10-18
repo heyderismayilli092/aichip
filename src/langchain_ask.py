@@ -159,7 +159,7 @@ def askai_stream(llm, rag_manager, systemprompt, question, ragsource, chatmodel)
         yield f"- {source}\n"
 
 
-def summary(llm, chaintype, sourcedoc):
+def summary(llm, chaintype, mapprompt, reduceprompt, sourcedoc):
     document = source_utils.safe_load_document(sourcedoc)  # uploaded file is being loaded
     # the document is being broken down into parts
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
@@ -170,7 +170,18 @@ def summary(llm, chaintype, sourcedoc):
         max_tokens=sum_max_tokens,
         temperature=sum_temperature,
     )
-    summarychain = load_summarize_chain(langchain_llm, chain_type=chaintype, verbose=False)
+    # Map Stage (Instruction used while summarizing each chunk individually)
+    map_template = """{mapprompt}
+{text}
+"""
+    map_prompt = PromptTemplate(template=map_template, input_variables=["text"]).partial(mapprompt=mapprompt)  # relevant system prompt is provided for the summarization of each part
+
+    # B) Reduce Stage (Instruction used while combining chunk summaries into a final report)
+    reduce_template = """{reduceprompt}
+{text}
+"""
+    reduce_prompt = PromptTemplate(template=reduce_template, input_variables=["text"]).partial(reduceprompt=reduceprompt)  # a system prompt is given to generate a general summary of all the generated summaries
+    summarychain = load_summarize_chain(langchain_llm, chain_type=chaintype, map_prompt=map_prompt, combine_prompt=reduce_prompt, verbose=False)
     output = summarychain.invoke(splitted_source)
     return output
 

@@ -323,12 +323,12 @@ def ragcheck(req: ragcheck):
 
 # Summary documents (.pdf, .docx, .txt ....)
 @app.post("/api/summary")
-async def summary_source(file: UploadFile = File(...), chain_type: str = Form(...)):
+async def summary_source(file: UploadFile = File(...), chain_type: str = Form(...), map_prompt: str = Form(...), reduce_prompt: str = Form(...)):
     # file save in /tmp cache
     tmp_path = f"/tmp/sumdoc_{file.filename}"
     with open(tmp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    output = langchain_ask.summary(llm, chain_type, tmp_path)
+    output = langchain_ask.summary(llm, chain_type, map_prompt, reduce_prompt, tmp_path)
     return output
 
 
