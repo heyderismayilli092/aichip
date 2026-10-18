@@ -1,18 +1,52 @@
 import os
 import time
 import json
-# LangChain imports
+import source_utils  # provides the necessary preliminary functions for processing the given resources
+# LangChain frameworks
 from langchain_community.vectorstores import Chroma
 from langchain_community.llms import LlamaCpp
-#from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts import PromptTemplate
-#from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_classic.chains.summarize import load_summarize_chain
+from langchain_core.callbacks import CallbackManager, StreamingStdOutCallbackHandler
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.language_models.llms import LLM
+from pydantic import ConfigDict
+from typing import Any
 
 # loading config file
 with open("config.json", "r") as configfile:  # loading config file
   data = json.load(configfile)
-max_tokens = data["max-tokens"]
+max_tokens = data["llm"]["max-tokens"]
+temperature = data["llm"]["temperature"]
+chunk_size = data["rag"]["chunk-size"]
+chunk_overlap = data["rag"]["chunk-overlap"]
+chat_model = data["chat-model"]
+sum_max_tokens = data["summary"]["max-tokens"]
+sum_temperature = data["summary"]["temperature"]
+
+
+# structure for adapting a raw-loaded model into LangChain
+class ExistingLlamaLLM(LLM):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    client: Any
+    max_tokens: int = 512
+    temperature: float = 0.7
+
+    @property
+    def _llm_type(self) -> str:
+        return "existing-llama-cpp"
+
+    @property
+    def _identifying_params(self) -> dict:
+        return {
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+        }
+
+    def _call(self, prompt: str, stop: list[str] | None = None, run_manager=None, **kwargs: Any,) -> str:
+        response = self.client(prompt, max_tokens=self.max_tokens, temperature=self.temperature, stop=stop, **kwargs,)
+        return response["choices"][0]["text"]
 
 
 # prompt mechanism
@@ -64,7 +98,7 @@ def ask(llm, rag_manager, systemprompt, question, ragsource, chatmodel):
     full_answer = []
     token_count = 0
 
-    stream = llm(prompt, max_tokens=max_tokens, temperature=0.1, stop=["Question:"], stream=False)  # streaming
+    stream = llm(prompt, max_tokens=max_tokens, temperature=temperature, stop=["Question:"], stream=False)  # streaming
     generation_time = (time.perf_counter() - generation_start)
 
     # OUTPUT
@@ -72,7 +106,6 @@ def ask(llm, rag_manager, systemprompt, question, ragsource, chatmodel):
       return {"answer": stream, "chatmodel": chatmodel, "sources": sources, "generation_time": str(generation_time)}
     else:
       return {"answer": stream, "chatmodel": chatmodel, "generation_time": str(generation_time)}
-
 
 
 def askai_stream(llm, rag_manager, systemprompt, question, ragsource, chatmodel):
@@ -105,7 +138,7 @@ def askai_stream(llm, rag_manager, systemprompt, question, ragsource, chatmodel)
     first_token_time = None
     token_count = 0
 
-    stream = llm(prompt, max_tokens=max_tokens, temperature=0.1, stop=["Question:"], stream=True)  # streaming
+    stream = llm(prompt, max_tokens=max_tokens, temperature=temperature, stop=["Question:"], stream=True)  # streaming
 
     # OUTPUT
     for chunk in stream:
@@ -119,8 +152,25 @@ def askai_stream(llm, rag_manager, systemprompt, question, ragsource, chatmodel)
     #generation_time = (time.perf_counter() - generation_start)
     #yield {"generation_time": str(generation_time), "chatmodel": chatmodel}
 
-    yield "\n\n---\n"
-    yield "Sources:\n"
-    for source in sources:
-      yield f"- {source}\n"
+    if ragsource == True:
+      yield "\n\n---\n"
+      yield "Sources:\n"
+      for source in sources:
+        yield f"- {source}\n"
+
+
+def summary(llm, chaintype, sourcedoc):
+    document = source_utils.safe_load_document(sourcedoc)  # uploaded file is being loaded
+    # the document is being broken down into parts
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    splitted_source = text_splitter.split_documents(document)
+    # separated parts are examined and summarized by the model
+    langchain_llm = ExistingLlamaLLM(
+        client=llm,
+        max_tokens=sum_max_tokens,
+        temperature=sum_temperature,
+    )
+    summarychain = load_summarize_chain(langchain_llm, chain_type=chaintype, verbose=False)
+    output = summarychain.invoke(splitted_source)
+    return output
 

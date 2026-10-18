@@ -77,18 +77,18 @@ import shutil
 # LangChain imports
 from langchain_community.vectorstores import Chroma
 from langchain_community.llms import LlamaCpp
+# Llama
 from llama_cpp import Llama
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
 from langchain_huggingface import HuggingFaceEmbeddings
+
 
 # loading config file
 with open("config.json", "r") as configfile:  # loading config file
   data = json.load(configfile)
-rag_folder = data["rag-folder"]  # RAG database directory
+rag_folder = data["rag"]["rag-folder"]  # RAG database directory
 embedding_model = data["embed-model"]  # Embedding model
 chat_model = data["chat-model"]
-n_ctx = data["n-ctx"]
+n_ctx = data["llm"]["n-ctx"]
 
 # -------------------- LLM Settings --------------------
 # Run model with CPU
@@ -213,7 +213,7 @@ async def rag_embed(
     with open(tmp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    output = langchain_embedding.process_files(tmp_path, index_name)
+    output = langchain_embedding.ragembed(tmp_path, index_name)
     if output == "not-supported-file":
       return {"status": output}
     elif output == "skipped":
@@ -319,6 +319,17 @@ def ragcheck(req: ragcheck):
       return {"status": "false"}
   else:
     return {"status": "false"}
+
+
+# Summary documents (.pdf, .docx, .txt ....)
+@app.post("/api/summary")
+async def summary_source(file: UploadFile = File(...), chain_type: str = Form(...)):
+    # file save in /tmp cache
+    tmp_path = f"/tmp/sumdoc_{file.filename}"
+    with open(tmp_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    output = langchain_ask.summary(llm, chain_type, tmp_path)
+    return output
 
 
 # Check health API
