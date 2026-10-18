@@ -17,9 +17,9 @@ from langchain_community.vectorstores import Chroma
 with open("config.json", "r") as configfile:
   data = json.load(configfile)
 EMBED_MODEL = data["embed-model"]  # HuggingFace embedding model
-rag_folder = data["rag-folder"]  # RAG database directory
-CHUNK_SIZE = data["chunk-size"]
-CHUNK_OVERLAP = data["chunk-overlap"]
+rag_folder = data["rag"]["rag-folder"]  # RAG database directory
+chunk_size = data["rag"]["chunk-size"]
+chunk_overlap = data["rag"]["chunk-overlap"]
 # ----------------------------
 
 
@@ -91,7 +91,7 @@ def ragembed(embedfile: str, db_dir: str):
     st = os.stat(fullpath)
 
     # Load and process each file one by one (don't load all at once)
-    splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
     mtime = int(st.st_mtime)
     fsize = st.st_size
