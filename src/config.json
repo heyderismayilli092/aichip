@@ -1,0 +1,21 @@
+{
+  "chat-model": "",
+  "embed-model": "",
+
+  "llm": {
+    "max-tokens": 4096,
+    "n-ctx": 4096,
+    "temperature": 0.3
+  },
+
+  "rag": {
+    "rag-folder": "",
+    "chunk-size": 2000,
+    "chunk-overlap": 200
+  },
+
+  "summary": {
+    "max-tokens": 600,
+    "temperature": 0.2
+  }
+}
