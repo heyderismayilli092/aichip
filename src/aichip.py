@@ -6,13 +6,13 @@
 
 #-------------------------------------------------------
 # File send and delete from database api:
-# curl -X POST http://127.0.0.1:8291/api/embeddelete \
+# curl -X POST http://127.0.0.1:8291/api/ragembed_delete \
 #  -F "file=@dnmsources/DECAP010_PROGRAMMING_IN_C.pdf" \
 #  -F "index_name=my_rag"
 
 # -----------------------------------------
 # Ask AI:
-# curl -X POST http://127.0.0.1:8291/api/askai \
+# curl -X POST http://127.0.0.1:8291/api/ragask \
 #  -H "Content-Type: application/json" \
 #  -d '{
 #    "systemprompt": "Answer the question according to the context given below. If you cannot find a suitable source to answer the question, try to answer according to your own knowledge and tell what type of sources are needed.",
@@ -24,7 +24,7 @@
 
 # -----------------------------------------
 # Ask AI (Real-time response sending (only applicable for a suitable web interface)):
-# curl -X POST http://127.0.0.1:8291/api/askai_stream \
+# curl -X POST http://127.0.0.1:8291/api/ragask_stream \
 #  -H "Content-Type: application/json" \
 #  -d '{
 #    "systemprompt": "Answer the question according to the context given below. If you cannot find a suitable source to answer the question, try to answer according to your own knowledge and tell what type of sources are needed.",
@@ -40,7 +40,7 @@
 
 # -----------------------------------------
 # A source embedding check with hash value:
-# curl -X POST http://127.0.0.1:8291/api/checkembed \
+# curl -X POST http://127.0.0.1:8291/api/ragembed_check \
 #  -H "Content-Type: application/json" \
 #  -d '{
 #    "rag_name": "my_rag",
@@ -53,7 +53,7 @@
 
 # -----------------------------------------
 # Selected RAG database delete:
-# curl -X POST http://127.0.0.1:8291/api/deleterag \
+# curl -X POST http://127.0.0.1:8291/api/ragdelete \
 #  -H "Content-Type: application/json" \
 #  -d '{
 #    "rag_name": "my_rag"
@@ -204,10 +204,7 @@ app.add_middleware(
 
 # It saves the transmitted data to the RAG database (it is created if a RAG does not exist)
 @app.post("/api/ragembed")
-async def rag_embed(
-    file: UploadFile = File(...),
-    index_name: str = Form(...)
-):
+async def rag_embed(file: UploadFile = File(...), index_name: str = Form(...)):
     # file save in /tmp cache
     tmp_path = f"/tmp/{file.filename}"
     with open(tmp_path, "wb") as buffer:
@@ -229,8 +226,8 @@ async def rag_embed(
 
 
 # It delete the transmitted data to the RAG database
-@app.post("/api/embeddelete")
-async def embed_delete(file: UploadFile = File(...), rag_name: str = Form(...)):
+@app.post("/api/ragembed_delete")
+async def ragembed_delete(file: UploadFile = File(...), rag_name: str = Form(...)):
     if not os.path.exists(rag_name):
       return {"status": "false", "output": "RAG not found !"}
     # file save in /tmp cache
@@ -238,30 +235,30 @@ async def embed_delete(file: UploadFile = File(...), rag_name: str = Form(...)):
     with open(tmp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    output = langchain_embedding.delete_removed_from_db(tmp_path, rag_name)
+    output = langchain_embedding.delete_removed_from_rag(tmp_path, rag_name)
     return {"status": "true", "output": output}
 
 
-# Ask AI with API
-class AskAI(BaseModel):
+# Ask RAG AI with API
+class RagASK(BaseModel):
     systemprompt: str
     question: str
     rag_name: str
     top_k: int
     ragsource: bool
-@app.post("/api/askai")
-def askai(req: AskAI):
+@app.post("/api/ragask")
+def ragask(req: RagASK):
   rag_manager.load(rag_folder+"/"+req.rag_name, req.top_k)  # loading RAG database
-  output = langchain_ask.ask(llm, rag_manager, req.systemprompt, req.question, req.ragsource, os.path.basename(chat_model))
+  output = langchain_ask.ragask(llm, rag_manager, req.systemprompt, req.question, req.ragsource, os.path.basename(chat_model))
   return output
 
 
 # Real-time response sending (only applicable for a suitable web interface)
-@app.post("/api/askai_stream")
-async def askai_stream(req: AskAI):
+@app.post("/api/ragai_stream")
+async def ragask_stream(req: RagASK):
     rag_manager.load(rag_folder+"/"+req.rag_name, req.top_k)  # loading RAG database
     def event_stream():
-        for chunk in langchain_ask.askai_stream(llm, rag_manager, req.systemprompt, req.question, req.ragsource, os.path.basename(chat_model)):
+        for chunk in langchain_ask.ragask_stream(llm, rag_manager, req.systemprompt, req.question, req.ragsource, os.path.basename(chat_model)):
             yield chunk
     return StreamingResponse(event_stream(), media_type="text/plain")
 
@@ -283,11 +280,11 @@ def listrag():
 class chcembed(BaseModel):
     rag_name: str
     hashvalue: str
-@app.post("/api/checkembed")
-def checkembed(req: chcembed):
+@app.post("/api/ragembed_check")
+def ragembed_check(req: chcembed):
   if not os.path.exists(rag_folder):
     return {"status": "false", "error": "Not created RAG database"}
-  output = langchain_embedding.embed_check_hash(req.rag_name, req.hashvalue)
+  output = langchain_embedding.ragembed_check_hash(req.rag_name, req.hashvalue)
   if req.hashvalue in output:
     return {"status": "true"}
   else:
@@ -297,8 +294,8 @@ def checkembed(req: chcembed):
 # Delete selected RAG database
 class dltrag(BaseModel):
     rag_name: str
-@app.post("/api/deleterag")
-def deleterag(req: dltrag):
+@app.post("/api/ragdelete")
+def ragdelete(req: dltrag):
     if not req.rag_name:
       return {"status": "false", "error": "RAG name was not entered !"}
     output = langchain_embedding.delete_ragdb(req.rag_name)

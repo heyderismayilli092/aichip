@@ -24,7 +24,7 @@ chunk_overlap = data["rag"]["chunk-overlap"]
 
 
 # Deleting a file embedded in a RAG database from the database
-def delete_removed_from_db(embedfile: str, db_dir: str):
+def delete_removed_from_rag(embedfile: str, db_dir: str):
     db_dir = rag_folder+"/"+db_dir
     if not os.path.exists(db_dir):
       return {"status": "false", "output": "Database folder not found !"}
@@ -168,7 +168,7 @@ def ragembed(embedfile: str, db_dir: str):
 
 
 # Source embed check with hash value
-def embed_check_hash(db_dir, sha256: str) -> bool:
+def ragembed_check_hash(db_dir, sha256: str) -> bool:
   db_dir = rag_folder+"/"+db_dir
   shavalues = []  # hash values list
   with open(db_dir+"/embedded_metadata.json", "r") as jsdata:  # load the embedding metadata file

@@ -67,7 +67,7 @@ def build_context(documents):
     return "\n\n".join(document.page_content for document in documents)
 
 
-def ask(llm, rag_manager, systemprompt, question, ragsource, chatmodel):
+def ragask(llm, rag_manager, systemprompt, question, ragsource, chatmodel):
     # RETRIEVAL
     start = time.perf_counter()
     documents = rag_manager.retrieve(question)
@@ -108,7 +108,7 @@ def ask(llm, rag_manager, systemprompt, question, ragsource, chatmodel):
       return {"answer": stream, "chatmodel": chatmodel, "generation_time": str(generation_time)}
 
 
-def askai_stream(llm, rag_manager, systemprompt, question, ragsource, chatmodel):
+def ragask_stream(llm, rag_manager, systemprompt, question, ragsource, chatmodel):
     # RETRIEVAL
     start = time.perf_counter()
     documents = rag_manager.retrieve(question)
