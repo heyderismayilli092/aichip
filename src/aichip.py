@@ -1,3 +1,12 @@
+# -----------------------------------------
+# Ask AI:
+# curl -X POST http://127.0.0.1:8291/api/ask \
+#  -H "Content-Type: application/json" \
+#  -d '{
+#    "systemprompt": "Answer the question according to the context given below. If you cannot find a suitable source to answer the question, try to answer according to your own knowledge and tell what type of sources are needed.",
+#    "question": "what is machine learning ?"
+#  }'
+
 #-------------------------------------------------------
 # File send and embedding api:
 # curl -X POST http://127.0.0.1:8291/api/ragembed \
@@ -11,7 +20,7 @@
 #  -F "index_name=my_rag"
 
 # -----------------------------------------
-# Ask AI:
+# Ask AI with RAG:
 # curl -X POST http://127.0.0.1:8291/api/ragask \
 #  -H "Content-Type: application/json" \
 #  -d '{
@@ -23,7 +32,7 @@
 #  }'
 
 # -----------------------------------------
-# Ask AI (Real-time response sending (only applicable for a suitable web interface)):
+# Ask AI with RAG (Real-time response sending (only applicable for a suitable web interface)):
 # curl -X POST http://127.0.0.1:8291/api/ragask_stream \
 #  -H "Content-Type: application/json" \
 #  -d '{
@@ -36,7 +45,7 @@
 
 # -----------------------------------------
 # Get all RAG lists:
-# curl -X GET http://127.0.0.1:8291/api/listrag
+# curl -X GET http://127.0.0.1:8291/api/raglist
 
 # -----------------------------------------
 # A source embedding check with hash value:
@@ -202,6 +211,17 @@ app.add_middleware(
 )
 
 
+
+# it is used to send prompts to the loaded model itself
+class ASK(BaseModel):
+    systemprompt: str
+    question: str
+@app.post("/api/ask")
+async def ask(req: ASK):
+    output = langchain_ask.ask(llm, req.systemprompt, req.question)
+    return output
+
+
 # It saves the transmitted data to the RAG database (it is created if a RAG does not exist)
 @app.post("/api/ragembed")
 async def rag_embed(file: UploadFile = File(...), index_name: str = Form(...)):
@@ -249,7 +269,7 @@ class RagASK(BaseModel):
 @app.post("/api/ragask")
 def ragask(req: RagASK):
   rag_manager.load(rag_folder+"/"+req.rag_name, req.top_k)  # loading RAG database
-  output = langchain_ask.ragask(llm, rag_manager, req.systemprompt, req.question, req.ragsource, os.path.basename(chat_model))
+  output = langchain_ask.ragask(llm, rag_manager, req.systemprompt, req.question, req.ragsource)
   return output
 
 
@@ -258,14 +278,14 @@ def ragask(req: RagASK):
 async def ragask_stream(req: RagASK):
     rag_manager.load(rag_folder+"/"+req.rag_name, req.top_k)  # loading RAG database
     def event_stream():
-        for chunk in langchain_ask.ragask_stream(llm, rag_manager, req.systemprompt, req.question, req.ragsource, os.path.basename(chat_model)):
+        for chunk in langchain_ask.ragask_stream(llm, rag_manager, req.systemprompt, req.question, req.ragsource):
             yield chunk
     return StreamingResponse(event_stream(), media_type="text/plain")
 
 
 # It retrieves a list of all RAG databases
-@app.get("/api/listrag")
-def listrag():
+@app.get("/api/raglist")
+def raglist():
   if not os.path.exists(rag_folder):
     return {"status": "false", "error": "Not created RAG database"}
   raglist = []

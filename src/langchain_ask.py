@@ -46,7 +46,7 @@ class ExistingLlamaLLM(LLM):
 
     def _call(self, prompt: str, stop: list[str] | None = None, run_manager=None, **kwargs: Any,) -> str:
         response = self.client(prompt, max_tokens=self.max_tokens, temperature=self.temperature, stop=stop, **kwargs,)
-        return response["choices"][0]["text"]
+        return response
 
 
 # prompt mechanism
@@ -67,13 +67,32 @@ def build_context(documents):
     return "\n\n".join(document.page_content for document in documents)
 
 
-def ragask(llm, rag_manager, systemprompt, question, ragsource, chatmodel):
+# a prompt is sent to the loaded raw model, and a response is generated
+def ask(llm, systemprompt, question):
+    # generation answer
+    print("Generating...")
+    generation_start = time.perf_counter()
+    response = llm.create_chat_completion(
+        messages=[
+            {"role": "system", "content": f"{systemprompt}"},
+            {"role": "user", "content": f"{question}"}
+        ],
+        max_tokens=max_tokens,
+        temperature=temperature
+    )
+    generation_time = (time.perf_counter() - generation_start)
+    print("Generated response - (", generation_time, ")")
+    return {"answer": response, "chatmodel": os.path.basename(chat_model), "generation_time": str(generation_time)}
+
+
+# a response to the prompt is generated using a RAG database
+def ragask(llm, rag_manager, systemprompt, question, ragsource):
     # RETRIEVAL
     start = time.perf_counter()
     documents = rag_manager.retrieve(question)
     retrieval_time = (time.perf_counter() - start)
-    print(f"[Retrieval] {retrieval_time:.3f}s")
-    print(f"[Documents] {len(documents)}")
+    print(f"Retrieval: {retrieval_time:.3f}s")
+    print(f"Documents: {len(documents)}")
 
     # SOURCES
     if ragsource == True:
@@ -103,12 +122,13 @@ def ragask(llm, rag_manager, systemprompt, question, ragsource, chatmodel):
 
     # OUTPUT
     if ragsource == True:
-      return {"answer": stream, "chatmodel": chatmodel, "sources": sources, "generation_time": str(generation_time)}
+      return {"answer": stream, "chatmodel": os.path.basename(chat_model), "sources": sources, "generation_time": str(generation_time)}
     else:
-      return {"answer": stream, "chatmodel": chatmodel, "generation_time": str(generation_time)}
+      return {"answer": stream, "chatmodel": os.path.basename(chat_model), "generation_time": str(generation_time)}
 
 
-def ragask_stream(llm, rag_manager, systemprompt, question, ragsource, chatmodel):
+# a response to the prompt is generated using a RAG database (the answer is produced and displayed in real time)
+def ragask_stream(llm, rag_manager, systemprompt, question, ragsource):
     # RETRIEVAL
     start = time.perf_counter()
     documents = rag_manager.retrieve(question)
@@ -159,6 +179,7 @@ def ragask_stream(llm, rag_manager, systemprompt, question, ragsource, chatmodel
         yield f"- {source}\n"
 
 
+# a summary of the submitted document is generated and displayed to the user
 def summary(llm, chaintype, mapprompt, reduceprompt, sourcedoc):
     document = source_utils.safe_load_document(sourcedoc)  # uploaded file is being loaded
     # the document is being broken down into parts
