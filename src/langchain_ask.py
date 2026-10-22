@@ -44,9 +44,26 @@ class ExistingLlamaLLM(LLM):
             "temperature": self.temperature,
         }
 
-    def _call(self, prompt: str, stop: list[str] | None = None, run_manager=None, **kwargs: Any,) -> str:
+    def _call(self, prompt: str, stop: list[str] | None = None, run_manager=None, **kwargs,) -> str:
+        print("="*15)
+        print("MODEL CALL DEBUG:")
+        print("="*15)
+        print("Prompt length:", len(prompt))
+        print("Prompt preview:")
+        print(repr(prompt[:1000]))
+        print("Stop:", stop)
+        print("Max tokens:", self.max_tokens)
+        print("Temperature:", self.temperature)
+
         response = self.client(prompt, max_tokens=self.max_tokens, temperature=self.temperature, stop=stop, **kwargs,)
-        return response
+        print("="*15)
+        print("RAW MODEL RESPONSE:")
+        print("="*15)
+        print("Finish reason:", response["choices"][0].get("finish_reason"))
+        print("Output length:", len(response["choices"][0]["text"]))
+        print("Output preview:", repr(response["choices"][0]["text"][:500]))
+        print("=="*20, "\n")
+        return response["choices"][0]["text"]
 
 
 # prompt mechanism
