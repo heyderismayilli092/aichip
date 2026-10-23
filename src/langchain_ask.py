@@ -208,18 +208,28 @@ def summary(llm, chaintype, mapprompt, reduceprompt, sourcedoc):
         max_tokens=sum_max_tokens,
         temperature=sum_temperature,
     )
-    # Map Stage (Instruction used while summarizing each chunk individually)
-    map_template = """{mapprompt}
+    # 'Map Reduce' method
+    if chaintype == "map_reduce":
+        print("Mode: map_reduce")
+        # Map Stage (Instruction used while summarizing each chunk individually)
+        map_template = """{mapprompt}
 {text}
 """
-    map_prompt = PromptTemplate(template=map_template, input_variables=["text"]).partial(mapprompt=mapprompt)  # relevant system prompt is provided for the summarization of each part
+        map_prompt = PromptTemplate(template=map_template, input_variables=["text"]).partial(mapprompt=mapprompt)  # relevant system prompt is provided for the summarization of each part
 
-    # B) Reduce Stage (Instruction used while combining chunk summaries into a final report)
-    reduce_template = """{reduceprompt}
+        # B) Reduce Stage (Instruction used while combining chunk summaries into a final report)
+        reduce_template = """{reduceprompt}
 {text}
 """
-    reduce_prompt = PromptTemplate(template=reduce_template, input_variables=["text"]).partial(reduceprompt=reduceprompt)  # a system prompt is given to generate a general summary of all the generated summaries
-    summarychain = load_summarize_chain(langchain_llm, chain_type=chaintype, map_prompt=map_prompt, combine_prompt=reduce_prompt, verbose=False)
-    output = summarychain.invoke(splitted_source)
+        reduce_prompt = PromptTemplate(template=reduce_template, input_variables=["text"]).partial(reduceprompt=reduceprompt)  # a system prompt is given to generate a general summary of all the generated summaries
+        summarychain = load_summarize_chain(langchain_llm, chain_type="map_reduce", map_prompt=map_prompt, combine_prompt=reduce_prompt, verbose=False)
+        output = summarychain.invoke(splitted_source)
+
+    # 'Stuff' method
+    elif chaintype == "stuff":
+        print("Mode: stuff")
+        summarychain = load_summarize_chain(langchain_llm, chain_type="stuff", verbose=False)
+        output = summarychain.invoke(splitted_source)
+
     return output
 
