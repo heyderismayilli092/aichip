@@ -214,17 +214,23 @@ app.add_middleware(
 
 # it is used to send prompts to the loaded model itself
 class ASK(BaseModel):
-    systemprompt: str
+    systemprompt: str | None = Form(None),
     question: str
 @app.post("/api/ask")
 async def ask(req: ASK):
-    output = langchain_ask.ask(llm, req.systemprompt, req.question)
+    if req.systemprompt:
+        output = langchain_ask.ask(llm, req.question, req.systemprompt)
+    else:
+        output = langchain_ask.ask(llm, req.question, None)
     return output
 
 
 # It saves the transmitted data to the RAG database (it is created if a RAG does not exist)
 @app.post("/api/ragembed")
-async def rag_embed(file: UploadFile = File(...), index_name: str = Form(...)):
+async def rag_embed(
+    file: UploadFile = File(...),
+    index_name: str = Form(...)
+):
     # file save in /tmp cache
     tmp_path = f"/tmp/{file.filename}"
     with open(tmp_path, "wb") as buffer:
@@ -247,7 +253,10 @@ async def rag_embed(file: UploadFile = File(...), index_name: str = Form(...)):
 
 # It delete the transmitted data to the RAG database
 @app.post("/api/ragembed_delete")
-async def ragembed_delete(file: UploadFile = File(...), rag_name: str = Form(...)):
+async def ragembed_delete(
+    file: UploadFile = File(...),
+    rag_name: str = Form(...)
+):
     if not os.path.exists(rag_name):
       return {"status": "false", "output": "RAG not found !"}
     # file save in /tmp cache
@@ -340,12 +349,21 @@ def ragcheck(req: ragcheck):
 
 # Summary documents (.pdf, .docx, .txt ....)
 @app.post("/api/summary")
-async def summary_source(file: UploadFile = File(...), chain_type: str = Form(...), map_prompt: str = Form(...), reduce_prompt: str = Form(...)):
+async def summary_source(
+    file: UploadFile,
+    chain_type: str = Form(...),
+    map_prompt: str | None = Form(None),
+    reduce_prompt: str | None = Form(None),
+    stuff_prompt: str | None = Form(None),
+):
     # file save in /tmp cache
     tmp_path = f"/tmp/sumdoc_{file.filename}"
     with open(tmp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    output = langchain_ask.summary(llm, chain_type, map_prompt, reduce_prompt, tmp_path)
+    if chain_type == "map_reduce":
+        output = langchain_ask.summary(llm, chain_type, tmp_path, map_prompt, reduce_prompt, None)
+    elif chain_type == "stuff":
+        output = langchain_ask.summary(llm, chain_type, tmp_path, None, None, stuff_prompt)
     return output
 
 

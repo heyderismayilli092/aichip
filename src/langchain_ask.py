@@ -85,15 +85,21 @@ def build_context(documents):
 
 
 # a prompt is sent to the loaded raw model, and a response is generated
-def ask(llm, systemprompt, question):
+def ask(llm, question, systemprompt=None):
     # generation answer
     print("Generating...")
     generation_start = time.perf_counter()
-    response = llm.create_chat_completion(
-        messages=[
+    if systemprompt:
+        rolelist = [
             {"role": "system", "content": f"{systemprompt}"},
             {"role": "user", "content": f"{question}"}
-        ],
+        ]
+    else:
+        rolelist = [
+            {"role": "user", "content": f"{question}"}
+        ]
+    response = llm.create_chat_completion(
+        messages=rolelist,
         max_tokens=max_tokens,
         temperature=temperature
     )
@@ -197,7 +203,7 @@ def ragask_stream(llm, rag_manager, systemprompt, question, ragsource):
 
 
 # a summary of the submitted document is generated and displayed to the user
-def summary(llm, chaintype, mapprompt, reduceprompt, sourcedoc):
+def summary(llm, chaintype, sourcedoc, mapprompt=None, reduceprompt=None, stuffprompt=None):
     document = source_utils.safe_load_document(sourcedoc)  # uploaded file is being loaded
     # the document is being broken down into parts
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
@@ -211,24 +217,36 @@ def summary(llm, chaintype, mapprompt, reduceprompt, sourcedoc):
     # 'Map Reduce' method
     if chaintype == "map_reduce":
         print("Mode: map_reduce")
-        # Map Stage (Instruction used while summarizing each chunk individually)
-        map_template = """{mapprompt}
+        if mapprompt:
+            # Map Stage (Instruction used while summarizing each chunk individually)
+            map_template = """{mapprompt}
 {text}
 """
-        map_prompt = PromptTemplate(template=map_template, input_variables=["text"]).partial(mapprompt=mapprompt)  # relevant system prompt is provided for the summarization of each part
+            map_prompt = PromptTemplate(template=map_template, input_variables=["text"]).partial(mapprompt=mapprompt)  # relevant system prompt is provided for the summarization of each part
+        if reduceprompt:
+            # B) Reduce Stage (Instruction used while combining chunk summaries into a final report)
+            reduce_template = """{reduceprompt}
+{text}
+"""
+            reduce_prompt = PromptTemplate(template=reduce_template, input_variables=["text"]).partial(reduceprompt=reduceprompt)  # a system prompt is given to generate a general summary of all the generated summaries
 
-        # B) Reduce Stage (Instruction used while combining chunk summaries into a final report)
-        reduce_template = """{reduceprompt}
-{text}
-"""
-        reduce_prompt = PromptTemplate(template=reduce_template, input_variables=["text"]).partial(reduceprompt=reduceprompt)  # a system prompt is given to generate a general summary of all the generated summaries
-        summarychain = load_summarize_chain(langchain_llm, chain_type="map_reduce", map_prompt=map_prompt, combine_prompt=reduce_prompt, verbose=False)
+        if mapprompt != None or reduceprompt != None:
+            summarychain = load_summarize_chain(langchain_llm, chain_type="map_reduce", verbose=False)
+        else:
+            summarychain = load_summarize_chain(langchain_llm, chain_type="map_reduce", map_prompt=map_prompt, combine_prompt=reduce_prompt, verbose=False)
         output = summarychain.invoke(splitted_source)
 
     # 'Stuff' method
     elif chaintype == "stuff":
         print("Mode: stuff")
-        summarychain = load_summarize_chain(langchain_llm, chain_type="stuff", verbose=False)
+        # if the user has not provided an additional system prompt for summarization, no prompt is sent
+        if stuffprompt:
+            stuff_template = """{stuffprompt}
+{text}"""
+            stuff_prompt = PromptTemplate(template=stuff_template, input_variables=["text"]).partial(stuffprompt=stuffprompt)  # a system prompt is given to generate a general summary of all the generated summaries
+            summarychain = load_summarize_chain(langchain_llm, chain_type="stuff", prompt=stuff_prompt, verbose=False)
+        else:
+            summarychain = load_summarize_chain(langchain_llm, chain_type="stuff", verbose=False)
         output = summarychain.invoke(splitted_source)
 
     return output
