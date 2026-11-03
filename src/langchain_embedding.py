@@ -177,3 +177,27 @@ def ragembed_check_hash(db_dir, sha256: str) -> bool:
     shavalues.append(data[embedfile]["sha256"])  # sha valuess add in list
   return shavalues
 
+
+# Generates an embed output from the submitted data
+def embed(embedding_model, input_type: str, texts: str):
+    # controls
+    if input_type not in ("document", "query"):
+        return "invalid input_type"
+    if any(not text.strip() for text in texts):
+        return "empty text"
+
+    # generate vectors
+    try:
+        if input_type == "document":
+            vectors = embedding_model.embed_documents(texts)  # vectors are being generated
+        else:
+            vectors = [embedding_model.embed_query(text) for text in texts]  # vectors are being generated
+
+        return {
+            "model": EMBED_MODEL,
+            "dimension": len(vectors[0]),
+            "embeddings": vectors
+        }
+    except Exception as e:
+        return "Could not generate embed output !"
+

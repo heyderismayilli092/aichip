@@ -75,7 +75,7 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import langchain_embedding  # RAG embed with Langchain+ChromDB script
 import langchain_ask  # Ask AI with Langchain + RAG
 import os
@@ -172,7 +172,7 @@ class RAGManager:
 
 
 # EMBEDDING
-def load_embeddings():
+def load_embedding_model():
     print("Embedding model loading...")
     start = time.perf_counter()
     embeddings = HuggingFaceEmbeddings(
@@ -195,8 +195,8 @@ def load_llm():
 
 
 # loading
-embeddings = load_embeddings()
-rag_manager = RAGManager(embeddings)
+embedding_model = load_embedding_model()
+rag_manager = RAGManager(embedding_model)
 llm = load_llm()
 
 
@@ -364,6 +364,16 @@ async def summary_source(
         output = langchain_ask.summary(llm, chain_type, tmp_path, map_prompt, reduce_prompt, None)
     elif chain_type == "stuff":
         output = langchain_ask.summary(llm, chain_type, tmp_path, None, None, stuff_prompt)
+    return output
+
+
+# enables the generation of embed text
+class EmbedRequest(BaseModel):
+    texts: list[str] = Field(min_length=1)
+    input_type: str = "document"
+@app.post("/api/embed")
+def embed(request: EmbedRequest):
+    output = langchain_embedding.embed(embedding_model, request.input_type, request.texts)
     return output
 
 
