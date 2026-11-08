@@ -74,21 +74,26 @@
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, HTMLResponse
 from pydantic import BaseModel, Field
 import langchain_embedding  # RAG embed with Langchain+ChromDB script
 import langchain_ask  # Ask AI with Langchain + RAG
+from starlette.concurrency import run_in_threadpool
+import asyncio
 import os
 import sys
 import json
 import time
 import shutil
+import uuid
 # LangChain imports
 from langchain_community.vectorstores import Chroma
 from langchain_community.llms import LlamaCpp
 # Llama
 from llama_cpp import Llama
 from langchain_huggingface import HuggingFaceEmbeddings
+# LLM track monitor
+from monitor import monitor
 
 
 # loading config file
@@ -136,14 +141,14 @@ class RAGManager:
             raise FileNotFoundError(f"RAG not found: {rag_path}")
         # Opened RAGs will be kept here
         if rag_path in self.cache:
-            print(f"[RAG] Cache used: {rag_path}")
+            print(f"RAG Cache used: {rag_path}")
             self.current_path = rag_path
             self.current_retriever = self.cache[rag_path]
             return
 
 
         # Opening for the first time
-        print(f"[RAG] Loading: {rag_path}")
+        print(f"RAG Loading: {rag_path}")
         start = time.perf_counter()
         vectordb = Chroma(persist_directory=rag_path, embedding_function=self.embeddings)
         retriever = vectordb.as_retriever(
@@ -171,8 +176,9 @@ class RAGManager:
         return self.current_retriever.invoke(question)
 
 
-# EMBEDDING
+# Load embedding model
 def load_embedding_model():
+    print("="*20)
     print("Embedding model loading...")
     start = time.perf_counter()
     embeddings = HuggingFaceEmbeddings(
@@ -180,17 +186,21 @@ def load_embedding_model():
         model_kwargs={"device": "cpu"},
         encode_kwargs={"normalize_embeddings": True}
     )
-    print(f"Embedding: {time.perf_counter() - start:.2f}s")
+    print(f"Model: {os.path.basename(embedding_model)}")
+    print(f"Load time: {time.perf_counter() - start:.2f}s")
     return embeddings
 
 
-# LLM
+# Load LLM model
 def load_llm():
+    print("="*20)
     print("LLM loading...")
     start = time.perf_counter()
     llm = Llama(model_path=chat_model, n_ctx=n_ctx, n_gpu_layers=-1, verbose=False)
-    print(f"[LLM] {time.perf_counter() - start:.2f}s")
+    print(f"Model: {os.path.basename(chat_model)}")
+    print(f"Load time: {time.perf_counter() - start:.2f}s")
     return llm
+
 # ----------------------------
 
 
@@ -198,6 +208,8 @@ def load_llm():
 embedding_model = load_embedding_model()
 rag_manager = RAGManager(embedding_model)
 llm = load_llm()
+print("="*20)
+print("Events track: /monitor")
 
 
 # FastAPI server
@@ -214,15 +226,38 @@ app.add_middleware(
 
 # it is used to send prompts to the loaded model itself
 class ASK(BaseModel):
-    systemprompt: str | None = Form(None),
+    systemprompt: str | None = Form(None)
     question: str
+    stream: bool
 @app.post("/api/ask")
 async def ask(req: ASK):
-    if req.systemprompt:
-        output = langchain_ask.ask(llm, req.question, req.systemprompt)
+    loop = asyncio.get_running_loop()
+    request_id = str(uuid.uuid4())
+    def prog_event_callback(event):
+        monitor.publish_nowait({"source": "chat", "request_id": request_id, **event})
+
+    if req.stream == False:
+        full_response = await run_in_threadpool(
+            langchain_ask.ask,
+            llm,
+            req.question,
+            req.systemprompt,
+            prog_event_callback
+        )
+        return full_response
+
     else:
-        output = langchain_ask.ask(llm, req.question, None)
-    return output
+        full_response = await run_in_threadpool(
+            langchain_ask.ask_stream,
+            llm,
+            req.question,
+            req.systemprompt,
+            prog_event_callback
+        )
+        def answer_stream():
+            for chunk in full_response:
+                yield chunk
+        return StreamingResponse(answer_stream(), media_type="text/plain")
 
 
 # It saves the transmitted data to the RAG database (it is created if a RAG does not exist)
@@ -286,10 +321,10 @@ def ragask(req: RagASK):
 @app.post("/api/ragai_stream")
 async def ragask_stream(req: RagASK):
     rag_manager.load(rag_folder+"/"+req.rag_name, req.top_k)  # loading RAG database
-    def event_stream():
+    def answer_stream():
         for chunk in langchain_ask.ragask_stream(llm, rag_manager, req.systemprompt, req.question, req.ragsource):
             yield chunk
-    return StreamingResponse(event_stream(), media_type="text/plain")
+    return StreamingResponse(answer_stream(), media_type="text/plain")
 
 
 # It retrieves a list of all RAG databases
@@ -375,6 +410,25 @@ class EmbedRequest(BaseModel):
 def embed(request: EmbedRequest):
     output = langchain_embedding.embed(embedding_model, request.input_type, request.texts)
     return output
+
+
+@app.get("/monitor/events")
+async def monitor_events():
+    async def event_generator():
+        async for event in monitor.subscribe():
+            yield (f"data: {json.dumps(event, default=str)}\n\n")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+
+
+@app.get("/monitor")
+async def monitor_page():
+    with open("monitor.html", "r", encoding="utf-8") as file:
+        return HTMLResponse(file.read())
 
 
 # Check health API

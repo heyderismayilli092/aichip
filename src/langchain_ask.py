@@ -26,6 +26,11 @@ sum_max_tokens = data["summary"]["max-tokens"]
 sum_temperature = data["summary"]["temperature"]
 
 
+# context
+def build_context(documents):
+    return "\n\n".join(document.page_content for document in documents)
+
+
 # structure for adapting a raw-loaded model into LangChain
 class ExistingLlamaLLM(LLM):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -79,33 +84,155 @@ Question:
 Answer:"""
 )
 
-# context
-def build_context(documents):
-    return "\n\n".join(document.page_content for document in documents)
-
 
 # a prompt is sent to the loaded raw model, and a response is generated
-def ask(llm, question, systemprompt=None):
-    # generation answer
-    print("Generating...")
-    generation_start = time.perf_counter()
-    if systemprompt:
-        rolelist = [
-            {"role": "system", "content": f"{systemprompt}"},
-            {"role": "user", "content": f"{question}"}
-        ]
-    else:
-        rolelist = [
-            {"role": "user", "content": f"{question}"}
-        ]
-    response = llm.create_chat_completion(
-        messages=rolelist,
-        max_tokens=max_tokens,
-        temperature=temperature
-    )
-    generation_time = (time.perf_counter() - generation_start)
-    print("Generated response - (", generation_time, ")")
-    return {"answer": response, "chatmodel": os.path.basename(chat_model), "generation_time": str(generation_time)}
+def ask(llm, question, systemprompt=None, event_callback=None):
+    # takes the events and adds them to the monitoring queue
+    def eventlog(event, **data):
+        if event_callback:
+            event_callback({"event": event, "timestamp": time.time(), **data})
+
+    try:
+        eventlog("generation_start")
+        generation_start = time.perf_counter()
+
+        if systemprompt:
+            rolelist = [
+                {"role": "system", "content": systemprompt},
+                {"role": "user", "content": question}
+            ]
+        else:
+            rolelist = [
+                {"role": "user", "content": question}
+            ]
+
+        eventlog("prompt_prepared", message_count=len(rolelist))
+        eventlog("llm_start")
+
+        # generating response
+        response = llm.create_chat_completion(
+            messages=rolelist,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=True
+        )
+
+        finish_reason = None
+        usage = None
+        model = None
+        created = None
+
+        answer = ""
+        rawresponse = []
+
+        for chunk in response:
+            rawresponse.append(chunk)
+            choice = chunk["choices"][0]
+            token = choice.get("delta", {}).get("content", "")
+
+            if token:
+                answer += token
+                eventlog("llm_token", token=token)
+
+            if choice.get("finish_reason"):
+                finish_reason = choice["finish_reason"]
+
+            # stream metadata
+            model = chunk.get("model", model)
+            created = chunk.get("created", created)
+            usage = chunk.get("usage", usage)
+
+        generation_time = time.perf_counter() - generation_start  # generation time
+
+        # reconstruct a response-like dictionary
+        final_response = {
+            "id": rawresponse[0].get("id") if rawresponse else None,
+            "object": "chat.completion",
+            "created": created,
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": answer
+                    },
+                    "finish_reason": finish_reason
+                }
+            ],
+            "usage": usage
+        }
+
+        eventlog("generation_end", generation_time=generation_time, finish_reason=finish_reason)
+        print("Generated response:", generation_time)
+        return {"answer": final_response, "chatmodel": os.path.basename(chat_model), "generation_time": str(generation_time)}
+    except Exception as e:
+        eventlog("generation_error", error=str(e))
+        raise
+
+
+def ask_stream(llm, question, systemprompt=None, event_callback=None):
+    # takes the events and adds them to the monitoring queue
+    def eventlog(event, **data):
+        if event_callback:
+            event_callback({"event": event, "timestamp": time.time(), **data})
+
+    try:
+        eventlog("generation_start")
+        generation_start = time.perf_counter()
+
+        if systemprompt:
+            rolelist = [
+                {"role": "system", "content": systemprompt},
+                {"role": "user", "content": question}
+            ]
+        else:
+            rolelist = [
+                {"role": "user", "content": question}
+            ]
+
+        eventlog("prompt_prepared", message_count=len(rolelist))
+        eventlog("llm_start")
+
+        # generating response
+        response = llm.create_chat_completion(
+            messages=rolelist,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=True
+        )
+
+        finish_reason = None
+        usage = None
+        model = None
+        created = None
+
+        for chunk in response:
+            choice = chunk["choices"][0]
+            token = choice.get("delta", {}).get("content", "")
+
+            if choice.get("finish_reason"):
+                finish_reason = choice["finish_reason"]
+
+            # stream metadata
+            model = chunk.get("model", model)
+            created = chunk.get("created", created)
+            usage = chunk.get("usage", usage)
+
+            # realtime send tokens
+            if token:
+                eventlog("llm_token", token=token)
+                yield token
+
+        generation_time = time.perf_counter() - generation_start  # generation time
+        eventlog("llm_end", generation_time=generation_time, finish_reason=finish_reason)
+        eventlog("generation_end")
+        print("Generated response:", generation_time)
+        yield "-- chat_model: "+os.path.basename(chat_model)
+        yield "-- generation_time: "+str(generation_time)
+    except Exception as e:
+        eventlog("generation_error", error=str(e))
+        raise
 
 
 # a response to the prompt is generated using a RAG database
