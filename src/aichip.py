@@ -68,6 +68,9 @@
 #    "rag_name": "my_rag"
 #  }'
 
+# -----------------------------------------
+# It displays information about the loaded model and the hardware:
+# curl -X GET http://127.0.0.1:8291/api/show
 
 
 
@@ -94,6 +97,9 @@ from llama_cpp import Llama
 from langchain_huggingface import HuggingFaceEmbeddings
 # LLM track monitor
 from monitor import monitor
+# Model Info
+from model_info import ModelInfo
+
 
 
 # loading config file
@@ -208,8 +214,9 @@ def load_llm():
 embedding_model = load_embedding_model()
 rag_manager = RAGManager(embedding_model)
 llm = load_llm()
+modelinfo = ModelInfo(llm=llm, model_path=chat_model, n_ctx=n_ctx, n_gpu_layers=-1)
 print("="*20)
-print("Events track: /monitor")
+print("Events track: /api/monitor")
 
 
 # FastAPI server
@@ -412,6 +419,7 @@ def embed(request: EmbedRequest):
     return output
 
 
+# sends the tokens and other information generated while the model is running to the interface
 @app.get("/monitor/events")
 async def monitor_events():
     async def event_generator():
@@ -425,10 +433,19 @@ async def monitor_events():
     )
 
 
-@app.get("/monitor")
+# LLM track monitor
+@app.get("/api/monitor")
 async def monitor_page():
     with open("monitor.html", "r", encoding="utf-8") as file:
         return HTMLResponse(file.read())
+
+
+# displays information about the loaded model
+@app.get("/api/show")
+async def model_info():
+    if modelinfo is None:
+        return {"status": "unloaded", "model": None}
+    return {"status": "loaded", "model": modelinfo.snapshot()}
 
 
 # Check health API
