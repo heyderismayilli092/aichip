@@ -106,8 +106,9 @@ from model_info import ModelInfo
 with open("config.json", "r") as configfile:  # loading config file
   data = json.load(configfile)
 rag_folder = data["rag"]["rag-folder"]  # RAG database directory
-embedding_model = data["embed-model"]  # Embedding model
-chat_model = data["chat-model"]
+models_path = data["models-path"]
+embedding_model = os.path.join(models_path, data["embed"]["model"])  # Embedding model
+chat_model = os.path.join(models_path, data["llm"]["model"])
 n_ctx = data["llm"]["n-ctx"]
 
 # -------------------- LLM Settings --------------------

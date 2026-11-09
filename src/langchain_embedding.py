@@ -16,7 +16,8 @@ from langchain_community.vectorstores import Chroma
 # ---------- CONFIG ----------
 with open("config.json", "r") as configfile:
   data = json.load(configfile)
-EMBED_MODEL = data["embed-model"]  # HuggingFace embedding model
+models_path = data["models-path"]
+embedding_model = os.path.join(models_path, data["embed"]["model"])  # Embedding model
 rag_folder = data["rag"]["rag-folder"]  # RAG database directory
 chunk_size = data["rag"]["chunk-size"]
 chunk_overlap = data["rag"]["chunk-overlap"]
@@ -29,7 +30,7 @@ def delete_removed_from_rag(embedfile: str, db_dir: str):
     if not os.path.exists(db_dir):
       return {"status": "false", "output": "Database folder not found !"}
     # Initialize embedding + db (embedding_function passed to Chroma when writing)
-    embedding = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
+    embedding = HuggingFaceEmbeddings(model_name=embedding_model)
     db = Chroma(persist_directory=db_dir, embedding_function=embedding)
     # load json embedding metadata
     meta = source_utils.load_meta(db_dir+"/embedded_metadata.json")
@@ -75,7 +76,7 @@ def ragembed(embedfile: str, db_dir: str):
       return "not-supported-file"
 
     # Initialize embedding + db (embedding_function passed to Chroma when writing)
-    embedding = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
+    embedding = HuggingFaceEmbeddings(model_name=embedding_model)
     db = Chroma(persist_directory=db_dir, embedding_function=embedding)
 
     meta = source_utils.load_meta(db_dir+"/embedded_metadata.json")

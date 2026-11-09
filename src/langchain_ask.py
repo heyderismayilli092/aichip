@@ -17,11 +17,12 @@ from typing import Any
 # loading config file
 with open("config.json", "r") as configfile:  # loading config file
   data = json.load(configfile)
+models_path = data["models-path"]
+chat_model = os.path.join(models_path, data["llm"]["model"])
 max_tokens = data["llm"]["max-tokens"]
 temperature = data["llm"]["temperature"]
 chunk_size = data["rag"]["chunk-size"]
 chunk_overlap = data["rag"]["chunk-overlap"]
-chat_model = data["chat-model"]
 sum_max_tokens = data["summary"]["max-tokens"]
 sum_temperature = data["summary"]["temperature"]
 
