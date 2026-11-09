@@ -1,8 +1,12 @@
 {
-  "chat-model": "",
-  "embed-model": "",
+  "models-path":"",
+
+  "embed": {
+    "model": "all-mpnet-base-v2"
+  },
 
   "llm": {
+    "model": "Llama-3.2-8B-Instruct-Q3_K_M.gguf",
     "max-tokens": 4096,
     "n-ctx": 4096,
     "temperature": 0.3
